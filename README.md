@@ -6,7 +6,7 @@ Emacsc(1) is a wrapper of emacsclient(1) for use within a terminal,
 which helps use Emacs more as command line tool than just a standalone
 environment.
 
-    usage: emacsc [-cdgkn] [-s NAME] [-e EXPR | -x EXPR | -f FUNC] [-C DIR] [FILE..]
+    usage: emacsc [-cdgknp] [-s NAME] [-e EXPR | -x EXPR | -f FUNC] [-C DIR] [FILE..]
 
         -h, --help      show this help
         -d, --daemon    run Emacs as daemon and quit
@@ -16,6 +16,9 @@ environment.
                         create a new frame
         -n, --no-wait
                         do not wait and return immediately
+        -p, --print
+                        print the evaluated result to stdout in string form
+                        typically used with -e and -x
         -s, --socket-name=NAME
                         specify the file name of the socket file name for
                         communication

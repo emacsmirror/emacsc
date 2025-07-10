@@ -2,7 +2,7 @@
 #
 # emacsc(1) - a wrapper of emacsclient(1)
 #
-# Copyright (c) 2012-2024 Akinori MUSHA
+# Copyright (c) 2012-2025 Akinori MUSHA
 #
 # All rights reserved.
 #
@@ -35,7 +35,7 @@ usage () {
     cat <<EOF >&2
 emacsc version $VERSION
 
-usage: $(basename "$0") [-cdgkn] [-s NAME] [-e EXPR | -x EXPR | -f FUNC] [-C DIR] [FILE..]
+usage: $(basename "$0") [-cdgknp] [-s NAME] [-e EXPR | -x EXPR | -f FUNC] [-C DIR] [FILE..]
 
     -h, --help      show this help
     -d, --daemon    run Emacs as daemon and quit
@@ -45,6 +45,9 @@ usage: $(basename "$0") [-cdgkn] [-s NAME] [-e EXPR | -x EXPR | -f FUNC] [-C DIR
                     create a new frame
     -n, --no-wait
                     do not wait and return immediately
+    -p, --print
+                    print the evaluated result to stdout in string form
+                    typically used with -e and -x
     -s, --socket-name=NAME
                     specify the file name of the socket file name for
                     communication (default: \${EMACS_SERVER_NAME:-server})
@@ -79,7 +82,7 @@ EOF
 : ${ALTERNATE_EDITOR=}
 export ALTERNATE_EDITOR
 
-unset expr func create_frame quiet interactive void args ec_args dir
+unset expr func create_frame quiet interactive void args ec_args dir print tmpfile
 tty=t
 dir=.
 
@@ -91,7 +94,7 @@ if [ -n "${EMACSCOPT+t}" ]; then
     set -- $EMACSCOPT "$@"
 fi
 
-while getopts cdgkns:e:x:f:C:h-: opt; do
+while getopts cdgknps:e:x:f:C:h-: opt; do
     if [ "$opt" = - ]; then
         case "$OPTARG" in
             *\=*)
@@ -118,6 +121,10 @@ while getopts cdgkns:e:x:f:C:h-: opt; do
         e|eval)
             expr="$OPTARG"
             unset tty
+            ;;
+        p|print)
+            print=t
+            void=t
             ;;
         x|execute)
             expr="$OPTARG"
@@ -201,6 +208,26 @@ if [ -n "${expr+t}" ]; then
 $dir
 EOF
     )"
+
+    if [ -n "$print" ]; then
+        tmpfile=$(mktemp -t emacsc.XXXXXX)
+
+        cleanup () {
+            if [ -f "$tmpfile" ]; then
+                rm -f -- "$tmpfile"
+            fi
+        }
+
+        trap "cleanup" 1 2 3 15
+
+        qtmpfile="$(sed 's/[\\"]/\\&/g' <<EOF
+$tmpfile
+EOF
+        )"
+        printer="(with-temp-file \"$qtmpfile\" (insert (format \"%s\" val)))${interactive+" (if (frame-parameter nil 'client) (delete-frame))"}"
+    else
+        printer=
+    fi
     set -- -e "${void+@}\
 (let*\
  ((default-directory \"$qdir\")\
@@ -208,6 +235,7 @@ EOF
   (val))\
  (or (with-local-quit (setq val $expr) t)\
      (setq quit-flag nil))\
+ $printer\
  val)" "$@"
 fi
 
@@ -251,6 +279,17 @@ if [ -n "${tty+t}" ]; then
     fi
 elif [ -n "${create_frame+t}" ]; then
     set -- -c "$@"
+fi
+
+if [ -n "$print" ]; then
+    if $ec "$@"; then
+        cat "$tmpfile"
+        ret=0
+    else
+        ret=$?
+    fi
+    cleanup
+    exit $ret
 fi
 
 exec $ec "$@"
