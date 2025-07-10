@@ -275,7 +275,7 @@ if [ -n "${tty+t}" ]; then
     if [ ! -t 1 ]; then
         : ${TTY:=`tty 2>/dev/null`}
         : ${TTY:=/dev/tty}
-        exec >$TTY
+        exec 3>&1 >$TTY
     fi
 elif [ -n "${create_frame+t}" ]; then
     set -- -c "$@"
@@ -283,7 +283,7 @@ fi
 
 if [ -n "$print" ]; then
     if $ec "$@"; then
-        cat "$tmpfile"
+        cat "$tmpfile" >&3
         ret=0
     else
         ret=$?
